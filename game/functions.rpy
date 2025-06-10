@@ -5,7 +5,7 @@ init -999 python:
         """
         Checks for  modules and loads them from various sources. updates persistent.game_version_for_languages
         """
-        if if True:
+        if True:
             store.persistent.subscription_script = None
             persistent.game_version_for_languages = config.version
             store.persistent.activated = True

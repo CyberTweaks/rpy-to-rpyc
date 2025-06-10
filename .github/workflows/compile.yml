@@ -26,7 +26,7 @@ jobs:
         ./renpy-sdk/renpy.sh ./ game --compile
 
     - name: Upload .rpyc files
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: compiled-rpyc
         path: game/*.rpyc

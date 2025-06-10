@@ -23,7 +23,7 @@ jobs:
 
     - name: Compile .rpy files
       run: |
-        ./renpy-sdk/renpy.sh ./ game --compile
+        ./renpy-sdk/renpy.sh ./ compile game
 
     - name: Upload .rpyc files
       uses: actions/upload-artifact@v4

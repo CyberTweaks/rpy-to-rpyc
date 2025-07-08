@@ -176,7 +176,7 @@ init python:
 
 
     def verify_code():
-       	store.hashbase == 0
+        store.hashbase == 0
         if store.hashbase == 10:
             return True
         entered_code = renpy.input("Enter the Supporters Code:")

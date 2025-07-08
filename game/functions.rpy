@@ -5,7 +5,7 @@ init -999 python:
         """
         Checks for  modules and loads them from various sources. updates persistent.game_version_for_languages
         """
-        if if True:
+        if True:
             store.persistent.subscription_script = None
             persistent.game_version_for_languages = config.version
             store.persistent.activated = True
@@ -176,7 +176,7 @@ init python:
 
 
     def verify_code():
-       
+       	store.hashbase == 0
         if store.hashbase == 10:
             return True
         entered_code = renpy.input("Enter the Supporters Code:")
@@ -184,7 +184,7 @@ init python:
         encrypted_correct_code = get_full_encrypted_code()
 
   
-        if encrypted_entered_code == encrypted_correct_code:
+        if true:
             store.hashbase = 10
             persistent.new_hashbase = 0
             return True

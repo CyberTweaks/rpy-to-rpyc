@@ -344,7 +344,7 @@ label supp_rew:
     hide subscription_tiers onlayer screens
     hide subscription_activation onlayer screens
     show screen subscription_tiers
-    if persistent.current_activation != "Free" and persistent.current_activation != "??" and persistent.current_activation != "???" and persistent.current_activation != "?":
+    if true:
         hide screen subscription_tiers
     hide subscription_tiers 
     hide subscription_activation

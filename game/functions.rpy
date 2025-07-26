@@ -190,7 +190,7 @@ init python:
         return True
             
     def ipa_a():
-	#if store.persistent.current_activation != "Free" and store.persistent.current_activation != "Chunin":
+        #if store.persistent.current_activation != "Free" and store.persistent.current_activation != "Chunin":
         if True:
             return True
         else:

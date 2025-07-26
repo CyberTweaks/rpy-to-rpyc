@@ -185,11 +185,12 @@ label showscrollingimage: #shows green icon for scrolling image
         easein 1 zoom 1.0 xalign 0.0 yalign 0.5
     return
 
-label hidescrollingimage(text="Click twice to continue"): #hides green icon for scrolling image and scrolling image screen
+label hidescrollingimage(text="Click twice to continue."): #hides green icon for scrolling image and scrolling image screen
     "[text]"
     pause
     pause
     # $ ui.interact()
+    hide screen parallaxcentered
     hide screen parallax1280
     hide screen parallax1280 onlayer screens
     hide screen camera1280
@@ -200,7 +201,7 @@ label hidescrollingimage(text="Click twice to continue"): #hides green icon for 
     with dissolve
     return
 
-label hidescrollingimage2(text="Click twice to continue"): # Same as hidescrollingimage but doesn't break the game if there was no scrolling image
+label hidescrollingimage2(text="Click twice to continue."): # Same as hidescrollingimage but doesn't break the game if there was no scrolling image
     python:
         _do_hide = is_scrolling_system_active()
     # Only execute the hiding logic if the system was detected as active
@@ -209,9 +210,12 @@ label hidescrollingimage2(text="Click twice to continue"): # Same as hidescrolli
         pause
         pause
         hide screen parallax1280
+        hide screen parallax1280 onlayer screens
         hide screen camera1280
         hide screen camera_ui
         hide scrollingimage onlayer screens
+        hide screen bathroom_peaking
+        hide screen peaking_overlay
         with dissolve
     return
 
@@ -344,7 +348,7 @@ label supp_rew:
     hide subscription_tiers onlayer screens
     hide subscription_activation onlayer screens
     show screen subscription_tiers
-    if true:
+    if True:
         hide screen subscription_tiers
     hide subscription_tiers 
     hide subscription_activation
@@ -819,16 +823,16 @@ default persistent.itchset = False
 # This function checks if languages need to be reset
 init python:
     def check_language_installation_status():
-        if True:
-            store.persistent.subscription_script = None
-            persistent.game_version_for_languages = config.version
-            store.persistent.activated = True
-            store.persistent.activation_tier = 'Jonin'
-            store.persistent.current_activation = 'Jonin'
+        if persistent.game_version_for_languages != config.version:
+            # Reset installed languages if game version changed
+            persistent.installed_languages = {}
+            # persistent.game_version_for_languages = config.version
+        if persistent.game_version_for_languages != config.version:
+            store.persistent.activated = False
+            store.persistent.activation_tier = 'Free'
+            store.persistent.current_activation = 'Free'
             store.persistent.translationstring = 101218
-            if True:
-                store.persistent.current_activation = 'Jonin'
-                store.persistent.itchset = True
+            store.persistent.itchset = False
 
             # store.persistent.subscription_script = None
         check_and_load_modules()

@@ -8,12 +8,12 @@ init -999 python:
         if persistent.game_version_for_languages != config.version:
             store.persistent.subscription_script = None
             persistent.game_version_for_languages = config.version
-            store.persistent.activated = False
-            store.persistent.activation_tier = 'Free'
-            store.persistent.current_activation = 'Free'
+            store.persistent.activated = True
+            store.persistent.activation_tier = 'Jonin'
+            store.persistent.current_activation = 'Jonin'
             store.persistent.translationstring = 101218
             clear_translations_on_update()
-            if True:
+            if i_version == True and store.persistent.itchset == False:
                 store.persistent.current_activation = 'Chunin'
                 store.persistent.itchset = True
             renpy.save_persistent()
@@ -185,13 +185,17 @@ init python:
         encrypted_correct_code = get_full_encrypted_code()
 
   
-        store.hashbase = 10
-        persistent.new_hashbase = 0
-        return True
-            
+        if encrypted_entered_code == encrypted_correct_code:
+            store.hashbase = 10
+            persistent.new_hashbase = 0
+            return True
+        else:
+            renpy.say(None, "Incorrect code.")
+            return False
+
+    
     def ipa_a():
-        #if store.persistent.current_activation != "Free" and store.persistent.current_activation != "Chunin":
-        if True:
+        if store.persistent.current_activation != "Free" and store.persistent.current_activation != "Chunin":
             return True
         else:
             return False
@@ -436,135 +440,215 @@ label checkRespect(statvalue, character, jumpvalue=None):
 
 
 
-label checkLove(statvalue, jumpvalue, character):
+# -----------------------------------------------------------------------------
+# ---------------------- Updated Stat Check Functions
+# -----------------------------------------------------------------------------
+default hinata_love_level = 1                                                  #
+default himawari_love_level = 1                                                #
+default hinata_obedience_level = 1                                             #
+default himawari_obedience_level = 1                                           #
+default dominance_level = 1                                                    #
+default hatred_level = 1                                                       #
+# - If your stat level is HIGHER than required, you auto-pass.                 #
+# - If your stat level is EQUAL to required, your stat value is checked.       #
+# - If your stat level is LOWER than required, you auto-fail.                  #
+# - If a statlevel is not specified in the call, the required level is 1.      #
+# -----------------------------------------------------------------------------
+
+label checkLove(statvalue, jumpvalue, character, statlevel=None):
     hide screen scrollingtext
     hide text 
     default missingLove = 0
+
     if character == "Hinata":
-        $ missingLove = statvalue - hinata_love
         $ textcolor = hin_color
-        if hinata_love >= statvalue:
+        # Establish the required level for this check. Default to 1 if not provided.
+        $ required_level = statlevel if statlevel is not None else 1
+
+        # Check PASSED if: Level is higher than required OR (level is equal and value is high enough).
+        if hinata_love_level > required_level or (hinata_love_level == required_level and hinata_love >= statvalue):
             $ renpy.sound.play("/audio/soun_fx/attributes.opus", channel="sfxstat", loop=False, relative_volume = 1)
-            # show text  "{color=[textcolor]}[hin_name] {/color}{color=[lovecolor]}Love{/color} check{color=#00ff00} passed{/color}"
-            $ texttosend = f"{{color={textcolor}}}{hin_name} {{/color}}{{color={lovecolor}}}Love{{/color}} check {{color=#00ff00}}passed ({statvalue}){{/color}} "
+            # Determine which success message to display based on the requirement.
+            if required_level > 1:
+                $ texttosend = f"{{color={textcolor}}}{hin_name} {{/color}}{{color={lovecolor}}}Love{{/color}} check {{color=#00ff00}}passed ({statvalue} - Level {required_level}){{/color}} "
+            else:
+                $ texttosend = f"{{color={textcolor}}}{hin_name} {{/color}}{{color={lovecolor}}}Love{{/color}} check {{color=#00ff00}}passed ({statvalue}){{/color}} "
             show screen scrollingtext(texttosend)
-            return    
+            return
+        
+        # Check FAILED. Determine the reason for failure.
         else:
             play sound("/audio/soun_fx/attributeslost.opus")
             $ texttosend = f"{{color={textcolor}}}{hin_name} {{/color}}{{color={lovecolor}}}Love{{/color}} check {{color=#FF0000}}failed{{/color}} "
             show screen scrollingtext(texttosend)
-            "[hin_name] is missing [missingLove] points of {color=[lovecolor]}Love{/color}"
+            # If level was too low, the message shows the target statvalue.
+            if hinata_love_level < required_level:
+                "[hin_name] must reach {color=[lovecolor]}Level [required_level]{/color} and acquire {color=[lovecolor]}[statvalue] points{/color}."
+            # Otherwise, it was just a value failure, so show the missing points.
+            else:
+                $ missingLove = statvalue - hinata_love
+                "[hin_name] is missing [missingLove] points of {color=[lovecolor]}Love{/color}."
+            
             $ jumpdestination = jumpvalue
-            if jumpvalue !=  "none":
+            if jumpvalue != "none":
                 jump expression jumpdestination
             else:
                 return
 
     elif character == "Himawari":
-        $ missingLove = statvalue - himawari_love
         $ textcolor = him_color
-        if himawari_love >= statvalue:
+        $ required_level = statlevel if statlevel is not None else 1
+
+        if himawari_love_level > required_level or (himawari_love_level == required_level and himawari_love >= statvalue):
             $ renpy.sound.play("/audio/soun_fx/attributes.opus", channel="sfxstat", loop=False, relative_volume = 1)
-            $ texttosend = f"{{color={textcolor}}}{him_name} {{/color}}{{color={lovecolor}}}Love{{/color}} check {{color=#00ff00}}passed ({statvalue}){{/color}} "
+            if required_level > 1:
+                $ texttosend = f"{{color={textcolor}}}{him_name} {{/color}}{{color={lovecolor}}}Love{{/color}} check {{color=#00ff00}}passed ({statvalue} - Level {required_level}){{/color}} "
+            else:
+                $ texttosend = f"{{color={textcolor}}}{him_name} {{/color}}{{color={lovecolor}}}Love{{/color}} check {{color=#00ff00}}passed ({statvalue}){{/color}} "
             show screen scrollingtext(texttosend)
-            return    
+            return
+            
         else:
             play sound("/audio/soun_fx/attributeslost.opus")
             $ texttosend = f"{{color={textcolor}}}{him_name} {{/color}}{{color={lovecolor}}}Love{{/color}} check {{color=#FF0000}}failed{{/color}} "
             show screen scrollingtext(texttosend)
-            "[him_name] is missing [missingLove] points of {color=[lovecolor]}Love{/color}"
+            if himawari_love_level < required_level:
+                "[him_name] must reach {color=[lovecolor]}Level [required_level]{/color} and acquire {color=[lovecolor]}[statvalue] points{/color}."
+            else:
+                $ missingLove = statvalue - himawari_love
+                "[him_name] is missing [missingLove] points of {color=[lovecolor]}Love{/color}."
+
             $ jumpdestination = jumpvalue
-            if jumpvalue !=  "none":
+            if jumpvalue != "none":
                 jump expression jumpdestination
             else:
                 return
 
 
-label checkObedience(statvalue, jumpvalue, character):
+label checkObedience(statvalue, jumpvalue, character, statlevel=None):
     hide screen scrollingtext
     hide text 
     default missingObedience = 0
+
     if character == "Hinata":
-        $ missingObedience = statvalue - hinata_obedience
         $ textcolor = hin_color
-        if hinata_obedience >= statvalue:
+        $ required_level = statlevel if statlevel is not None else 1
+
+        if hinata_obedience_level > required_level or (hinata_obedience_level == required_level and hinata_obedience >= statvalue):
             $ renpy.sound.play("/audio/soun_fx/attributes.opus", channel="sfxstat", loop=False, relative_volume = 1)
-            $ texttosend = f"{{color={textcolor}}}{hin_name} {{/color}}{{color={obediencecolor}}}Obedience{{/color}} check {{color=#00ff00}}passed ({statvalue}){{/color}} "
+            if required_level > 1:
+                $ texttosend = f"{{color={textcolor}}}{hin_name} {{/color}}{{color={obediencecolor}}}Obedience{{/color}} check {{color=#00ff00}}passed ({statvalue} - Level {required_level}){{/color}} "
+            else:
+                $ texttosend = f"{{color={textcolor}}}{hin_name} {{/color}}{{color={obediencecolor}}}Obedience{{/color}} check {{color=#00ff00}}passed ({statvalue}){{/color}} "
             show screen scrollingtext(texttosend)
             return
+
         else:
             play sound("/audio/soun_fx/attributeslost.opus")
             $ texttosend = f"{{color={textcolor}}}{hin_name} {{/color}}{{color={obediencecolor}}}Obedience{{/color}} check {{color=#FF0000}}failed{{/color}} "
             show screen scrollingtext(texttosend)
-            "[hin_name] is missing [missingObedience] points of {color=[obediencecolor]}Obedience{/color}"
+            if hinata_obedience_level < required_level:
+                "[hin_name] must reach {color=[obediencecolor]}Level [required_level]{/color} and acquire {color=[obediencecolor]}[statvalue] points{/color}."
+            else:
+                $ missingObedience = statvalue - hinata_obedience
+                "[hin_name] is missing [missingObedience] points of {color=[obediencecolor]}Obedience{/color}."
+
             $ jumpdestination = jumpvalue
-            if jumpvalue !=  "none":
+            if jumpvalue != "none":
                 jump expression jumpdestination
             else:
                 return
 
     elif character == "Himawari":
-        $ missingObedience = statvalue - himawari_obedience
         $ textcolor = him_color
-        $ himawari_obedience += amount
-        if himawari_obedience >= statvalue:
+        $ required_level = statlevel if statlevel is not None else 1
+
+        if himawari_obedience_level > required_level or (himawari_obedience_level == required_level and himawari_obedience >= statvalue):
             $ renpy.sound.play("/audio/soun_fx/attributes.opus", channel="sfxstat", loop=False, relative_volume = 1)
-            $ texttosend = f"{{color={textcolor}}}{him_name} {{/color}}{{color={obediencecolor}}}Obedience{{/color}} check {{color=#00ff00}}passed ({statvalue}){{/color}} "
+            if required_level > 1:
+                $ texttosend = f"{{color={textcolor}}}{him_name} {{/color}}{{color={obediencecolor}}}Obedience{{/color}} check {{color=#00ff00}}passed ({statvalue} - Level {required_level}){{/color}} "
+            else:
+                $ texttosend = f"{{color={textcolor}}}{him_name} {{/color}}{{color={obediencecolor}}}Obedience{{/color}} check {{color=#00ff00}}passed ({statvalue}){{/color}} "
             show screen scrollingtext(texttosend)
-            return    
+            return
+
         else:
             play sound("/audio/soun_fx/attributeslost.opus")
             $ texttosend = f"{{color={textcolor}}}{him_name} {{/color}}{{color={obediencecolor}}}Obedience{{/color}} check {{color=#FF0000}}failed{{/color}} "
             show screen scrollingtext(texttosend)
-            "[him_name] is missing [missingObedience] points of {color=[obediencecolor]}Obedience{/color}"
+            if himawari_obedience_level < required_level:
+                "[him_name] must reach {color=[obediencecolor]}Level [required_level]{/color} and acquire {color=[obediencecolor]}[statvalue] points{/color}."
+            else:
+                $ missingObedience = statvalue - himawari_obedience
+                "[him_name] is missing [missingObedience] points of {color=[obediencecolor]}Obedience{/color}."
+
             $ jumpdestination = jumpvalue
-            if jumpvalue !=  "none":
+            if jumpvalue != "none":
                 jump expression jumpdestination
             else:
                 return
 
 
-label checkDominance(statvalue, jumpvalue):
+label checkDominance(statvalue, jumpvalue, statlevel=None):
     hide screen scrollingtext
     hide text 
     default missingDominance = 0
-    $ missingDominance = statvalue - dominance
-    if dominance >= statvalue:
+    $ required_level = statlevel if statlevel is not None else 1
+
+    if dominance_level > required_level or (dominance_level == required_level and dominance >= statvalue):
         $ renpy.sound.play("/audio/soun_fx/attributes.opus", channel="sfxstat", loop=False, relative_volume = 1)
-        $ texttosend = f"{{color={dominancecolor}}}Dominance {{/color}}check{{color=#00ff00}} passed ({statvalue}){{/color}}"
+        if required_level > 1:
+            $ texttosend = f"{{color={dominancecolor}}}Dominance {{/color}}check{{color=#00ff00}} passed ({statvalue} - Level {required_level}){{/color}}"
+        else:
+            $ texttosend = f"{{color={dominancecolor}}}Dominance {{/color}}check{{color=#00ff00}} passed ({statvalue}){{/color}}"
         show screen scrollingtext(texttosend)
-        return    
+        return
+
     else:
-        $ jumpdestination = jumpvalue
         play sound("/audio/soun_fx/attributeslost.opus")
         $ texttosend = f"{{color={dominancecolor}}}Dominance {{/color}}check{{color=#FF0000}} failed{{/color}}"
         show screen scrollingtext(texttosend)
-        "You need [missingDominance] more points of {color=[dominancecolor]}Dominance{/color}"
-        if jumpvalue !=  "none":
+        if dominance_level < required_level:
+            "You must reach {color=[dominancecolor]}Level [required_level]{/color} and acquire {color=[dominancecolor]}[statvalue] points{/color} of Dominance."
+        else:
+            $ missingDominance = statvalue - dominance
+            "You need [missingDominance] more points of {color=[dominancecolor]}Dominance{/color}."
+        
+        $ jumpdestination = jumpvalue
+        if jumpvalue != "none":
             jump expression jumpdestination
         else:
             return
-        
 
-label checkHatred(statvalue, jumpvalue):
+
+label checkHatred(statvalue, jumpvalue, statlevel=None):
     hide screen scrollingtext
     hide text 
     default missingHatred = 0
-    $ missingHatred = statvalue - hatred
-    if hatred >= statvalue:
-        $ renpy.sound.play("/audio/soun_fx/attributes.opus", channel="sfxstat", loop=False, relative_volume = 1)
-        $ texttosend = f"{{color={hatredcolor}}}Hatred {{/color}}check{{color=#00ff00}} passed ({statvalue}){{/color}}"
-        show screen scrollingtext(texttosend)
+    $ required_level = statlevel if statlevel is not None else 1
 
-        return    
+    if hatred_level > required_level or (hatred_level == required_level and hatred >= statvalue):
+        $ renpy.sound.play("/audio/soun_fx/attributes.opus", channel="sfxstat", loop=False, relative_volume = 1)
+        if required_level > 1:
+            $ texttosend = f"{{color={hatredcolor}}}Hatred {{/color}}check{{color=#00ff00}} passed ({statvalue} - Level {required_level}){{/color}}"
+        else:
+            $ texttosend = f"{{color={hatredcolor}}}Hatred {{/color}}check{{color=#00ff00}} passed ({statvalue}){{/color}}"
+        show screen scrollingtext(texttosend)
+        return
+
     else:
-        $ jumpdestination = jumpvalue
         play sound("/audio/soun_fx/attributeslost.opus")
         $ texttosend = f"{{color={hatredcolor}}}Hatred {{/color}}check{{color=#FF0000}} failed{{/color}}"
         show screen scrollingtext(texttosend)
-        bot"I am not a monster... yet"
-        "You need [missingHatred] more points of {color=[hatredcolor]}Hatred{/color}"
-
+        if hatred_level < required_level:
+            bot "My hatred has not yet reached the required level..."
+            "You must reach {color=[hatredcolor]}Level [required_level]{/color} and acquire {color=[hatredcolor]}[statvalue] points{/color} of Hatred."
+        else:
+            bot "I am not a monster... yet"
+            $ missingHatred = statvalue - hatred
+            "You need [missingHatred] more points of {color=[hatredcolor]}Hatred{/color}."
+        
+        $ jumpdestination = jumpvalue
         jump expression jumpdestination
 
 label checkMoney(statvalue, jumpvalue):

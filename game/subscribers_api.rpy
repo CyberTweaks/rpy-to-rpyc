@@ -10,22 +10,22 @@ init python:
     
     def request_script(email, source):
 
-            persistent.game_version_for_languages = config.version
-            persistent.current_activation = tier
-            persistent.translationstring += 1
-            persistent.activated = True
-            persistent.activation_tier = source
-            renpy.save_persistent()
-            renpy.notify(f"{source.capitalize()} membership verified!")
-            renpy.play("audio/soun_fx/attributes.opus", channel="sound")
-            renpy.show_screen("subscription_confirmation_screen", message=f"{{color=#FFD700}}Activated:{{/color}} {tier}")
+        persistent.game_version_for_languages = config.version
+        persistent.current_activation = tier
+        persistent.translationstring += 1
+        persistent.activated = True
+        persistent.activation_tier = source
+        renpy.save_persistent()
+        renpy.notify(f"{source.capitalize()} membership verified!")
+        renpy.play("audio/soun_fx/attributes.opus", channel="sound")
+        renpy.show_screen("subscription_confirmation_screen", message=f"{{color=#FFD700}}Activated:{{/color}} {tier}")
 
-            
-            # Hide screens
-            renpy.hide_screen("platform_selection")
-            renpy.hide_screen("subscription_tiers")
-            
-            renpy.restart_interaction()
+        
+        # Hide screens
+        renpy.hide_screen("platform_selection")
+        renpy.hide_screen("subscription_tiers")
+        
+        renpy.restart_interaction()
 
 
         # Reset global variables

@@ -31,6 +31,15 @@ init python:
 
     
     
+persistent.game_version_for_languages = config.version
+persistent.current_activation = tier
+persistent.translationstring += 1
+persistent.activated = True
+persistent.activation_tier = source
+renpy.save_persistent()
+renpy.notify(f"{source.capitalize()} membership verified!")
+renpy.play("audio/soun_fx/attributes.opus", channel="sound")
+renpy.show_screen("subscription_confirmation_screen", message=f"{{color=#FFD700}}Activated:{{/color}} {tier}")
 
 
     def make_api_request(url, email, source, file_name):

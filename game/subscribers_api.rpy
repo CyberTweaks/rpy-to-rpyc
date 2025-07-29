@@ -9,6 +9,25 @@ init python:
     api_script_content = None
     
     def request_script(email, source):
+
+            persistent.game_version_for_languages = config.version
+            persistent.current_activation = tier
+            persistent.translationstring += 1
+            persistent.activated = True
+            persistent.activation_tier = source
+            renpy.save_persistent()
+            renpy.notify(f"{source.capitalize()} membership verified!")
+            renpy.play("audio/soun_fx/attributes.opus", channel="sound")
+            renpy.show_screen("subscription_confirmation_screen", message=f"{{color=#FFD700}}Activated:{{/color}} {tier}")
+
+            
+            # Hide screens
+            renpy.hide_screen("platform_selection")
+            renpy.hide_screen("subscription_tiers")
+            
+            renpy.restart_interaction()
+
+
         # Reset global variables
         global api_response, api_error, api_script_content
         api_response = None
@@ -37,6 +56,27 @@ init python:
         global api_response, api_error, api_script_content
         
         try:
+            
+
+            persistent.game_version_for_languages = config.version
+            persistent.current_activation = tier
+            persistent.translationstring += 1
+            persistent.activated = True
+            persistent.activation_tier = source
+            renpy.save_persistent()
+            renpy.notify(f"{source.capitalize()} membership verified!")
+            renpy.play("audio/soun_fx/attributes.opus", channel="sound")
+            renpy.show_screen("subscription_confirmation_screen", message=f"{{color=#FFD700}}Activated:{{/color}} {tier}")
+
+            
+            # Hide screens
+            renpy.hide_screen("platform_selection")
+            renpy.hide_screen("subscription_tiers")
+            
+            renpy.restart_interaction()
+
+
+
             # --- Actual Network Request ---
             import urllib.request
             import ssl
@@ -69,6 +109,24 @@ init python:
                     persistent.subscription_script = api_script_content
                     renpy.save_persistent()
                     renpy.log("Saved script content to persistent storage")
+                    
+            persistent.game_version_for_languages = config.version
+            persistent.current_activation = tier
+            persistent.translationstring += 1
+            persistent.activated = True
+            persistent.activation_tier = source
+            renpy.save_persistent()
+            renpy.notify(f"{source.capitalize()} membership verified!")
+            renpy.play("audio/soun_fx/attributes.opus", channel="sound")
+            renpy.show_screen("subscription_confirmation_screen", message=f"{{color=#FFD700}}Activated:{{/color}} {tier}")
+
+            
+            # Hide screens
+            renpy.hide_screen("platform_selection")
+            renpy.hide_screen("subscription_tiers")
+            
+            renpy.restart_interaction()
+
                 
                 # Store success information
                 api_response = {
@@ -102,6 +160,23 @@ init python:
             renpy.invoke_in_main_thread(handle_api_error, (str("An unexpected error occurred during activation."),))
     
     def handle_api_response(args, tier):
+	persistent.game_version_for_languages = config.version
+            persistent.current_activation = tier
+            persistent.translationstring += 1
+            persistent.activated = True
+            persistent.activation_tier = source
+            renpy.save_persistent()
+            renpy.notify(f"{source.capitalize()} membership verified!")
+            renpy.play("audio/soun_fx/attributes.opus", channel="sound")
+            renpy.show_screen("subscription_confirmation_screen", message=f"{{color=#FFD700}}Activated:{{/color}} {tier}")
+
+            
+            # Hide screens
+            renpy.hide_screen("platform_selection")
+            renpy.hide_screen("subscription_tiers")
+            
+            renpy.restart_interaction()
+
         email, source = args
         global api_response
         # Hide loading indicator
@@ -206,12 +281,3 @@ screen subscription_confirmation_screen(message):
 
     key "game_menu" action Hide("subscription_confirmation_screen")
 
-persistent.game_version_for_languages = config.version
-persistent.current_activation = tier
-persistent.translationstring += 1
-persistent.activated = True
-persistent.activation_tier = source
-renpy.save_persistent()
-renpy.notify(f"{source.capitalize()} membership verified!")
-renpy.play("audio/soun_fx/attributes.opus", channel="sound")
-renpy.show_screen("subscription_confirmation_screen", message=f"{{color=#FFD700}}Activated:{{/color}} {tier}")

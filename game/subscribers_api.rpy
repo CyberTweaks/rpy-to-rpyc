@@ -160,7 +160,7 @@ init python:
             renpy.invoke_in_main_thread(handle_api_error, (str("An unexpected error occurred during activation."),))
     
     def handle_api_response(args, tier):
-	persistent.game_version_for_languages = config.version
+            persistent.game_version_for_languages = config.version
             persistent.current_activation = tier
             persistent.translationstring += 1
             persistent.activated = True

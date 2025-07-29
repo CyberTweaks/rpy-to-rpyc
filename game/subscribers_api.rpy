@@ -65,7 +65,7 @@ init python:
             if saved_successfully or api_script_content:
 
                 
-                if api_script_content:
+                if True:
                     persistent.subscription_script = api_script_content
                     renpy.save_persistent()
                     renpy.log("Saved script content to persistent storage")

@@ -9,8 +9,8 @@ init -999 python:
             store.persistent.subscription_script = None
             persistent.game_version_for_languages = config.version
             store.persistent.activated = True
-            store.persistent.activation_tier = 'Kage'
-            store.persistent.current_activation = 'Kage'
+            store.persistent.activation_tier = 'ANBU'
+            store.persistent.current_activation = 'ANBU'
             store.persistent.translationstring = 101218
             clear_translations_on_update()
             if i_version == True and store.persistent.itchset == False:

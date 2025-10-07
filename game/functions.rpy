@@ -11,7 +11,7 @@ init -999 python:
         if persistent.game_version_for_languages != config.version:
             store.persistent.subscription_script = None
             persistent.game_version_for_languages = config.version
-            store.persistent.activated = False
+            store.persistent.activated = True
             store.persistent.i_version = True
             store.persistent.activation_tier = 'Jonin'
             store.persistent.current_activation = 'Jonin'
@@ -1577,4 +1577,5 @@ label debug_stat_state():
             else:
                 print(f"Variable '{level_name}': NOT FOUND")
             print("-" * 10)
+
     return

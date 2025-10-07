@@ -349,7 +349,7 @@ label supp_rew:
     hide subscription_tiers onlayer screens
     hide subscription_activation onlayer screens
     show screen subscription_tiers
-    if True:x
+    if True:
         hide screen subscription_tiers
     hide subscription_tiers 
     hide subscription_activation

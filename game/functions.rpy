@@ -17,8 +17,8 @@ init -999 python:
             store.persistent.current_activation = 'Jonin'
             store.persistent.translationstring = 101218
             clear_translations_on_update()
-            if persistent.i_version == True:
-                store.persistent.current_activation = 'Jonin'
+            if i_version == True and store.persistent.itchset == False:
+                store.persistent.current_activation = 'Chunin'
                 store.persistent.itchset = True
             renpy.save_persistent()
         try:
@@ -1579,3 +1579,4 @@ label debug_stat_state():
             print("-" * 10)
 
     return
+

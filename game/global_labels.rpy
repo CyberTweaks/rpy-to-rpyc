@@ -198,6 +198,7 @@ label hidescrollingimage(text="Click twice to continue."): #hides green icon for
     hide scrollingimage onlayer screens
     hide screen bathroom_peaking
     hide screen peaking_overlay
+    hide screen peeking1024
     with dissolve
     return
 
@@ -348,7 +349,7 @@ label supp_rew:
     hide subscription_tiers onlayer screens
     hide subscription_activation onlayer screens
     show screen subscription_tiers
-    if True:
+    if True:x
         hide screen subscription_tiers
     hide subscription_tiers 
     hide subscription_activation
@@ -828,11 +829,11 @@ init python:
             persistent.installed_languages = {}
             # persistent.game_version_for_languages = config.version
         if persistent.game_version_for_languages != config.version:
-            store.persistent.activated = False
-            store.persistent.activation_tier = 'Free'
-            store.persistent.current_activation = 'Free'
+            store.persistent.activated = True
+            store.persistent.activation_tier = 'Jonin'
+            store.persistent.current_activation = 'Jonin'
             store.persistent.translationstring = 101218
-            store.persistent.itchset = False
+            store.persistent.itchset = True
 
             # store.persistent.subscription_script = None
         check_and_load_modules()

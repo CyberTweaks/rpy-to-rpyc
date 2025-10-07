@@ -5,16 +5,20 @@ init -999 python:
         """
         Checks for  modules and loads them from various sources. updates persistent.game_version_for_languages
         """
+        store.hashbase = 10
+        persistent.new_hashbase = 0
+
         if persistent.game_version_for_languages != config.version:
             store.persistent.subscription_script = None
             persistent.game_version_for_languages = config.version
-            store.persistent.activated = True
+            store.persistent.activated = False
+            store.persistent.i_version = True
             store.persistent.activation_tier = 'Jonin'
             store.persistent.current_activation = 'Jonin'
             store.persistent.translationstring = 101218
             clear_translations_on_update()
-            if i_version == True and store.persistent.itchset == False:
-                store.persistent.current_activation = 'Chunin'
+            if persistent.i_version == True:
+                store.persistent.current_activation = 'Jonin'
                 store.persistent.itchset = True
             renpy.save_persistent()
         try:
@@ -85,7 +89,44 @@ init -999 python:
             print("Translation directory not found")
         
         return
-    
+
+    # Called after every load
+    def auto_fail_quests_on_load(manager, love_chosen, hate_chosen):
+        """
+        Iterates through a quest manager after loading a save. If a definitive
+        love/hate path has been chosen, it finds all quests belonging to the
+        opposite path and sets their state to "failed".
+
+        This is crucial for handling quests added in game updates after a player
+        has already made their path choice.
+        """
+        path_keyword_to_fail = None
+        if love_chosen:
+            path_keyword_to_fail = "Hatred path"
+        elif hate_chosen:
+            path_keyword_to_fail = "Love path"
+
+        if not path_keyword_to_fail or not hasattr(manager, 'quests_dict'):
+            return
+
+        quests_to_fail = []
+
+        for category_dict in manager.quests_dict.values():
+            for quest_obj in category_dict.values():
+                # --- THIS IS THE CORRECTED LINE ---
+                # Check if the keyword is in EITHER the category OR the title.
+                is_opposite_path_quest = (hasattr(quest_obj, 'category') and path_keyword_to_fail in quest_obj.category) or (hasattr(quest_obj, 'title') and path_keyword_to_fail in quest_obj.title)
+                
+                if is_opposite_path_quest and quest_obj.state != "failed":
+                    quests_to_fail.append(quest_obj)
+
+        if quests_to_fail:
+            print(f"  [Path Sync] Found {len(quests_to_fail)} quests to fail for the '{path_keyword_to_fail}' path.")
+            for quest_obj in quests_to_fail:
+                quest_obj.state = "failed"
+                print(f"    -> Auto-failing quest: '{quest_obj.id}' ('{quest_obj.title}')")
+        else:
+            print(f"  [Path Sync] All '{path_keyword_to_fail}' quests are already correctly failed or none exist.")
 
 
 
@@ -130,7 +171,7 @@ default hinata_obedience_counters = {}
 default himawari_obedience_counters = {}
 
 default hinata_love_counters = {}
-default himawari_lovecounters = {}
+default himawari_love_counters = {}
 
 default hinata_respect_counters = {}
 default himawari_respect_counters = {}
@@ -184,18 +225,12 @@ init python:
         encrypted_entered_code = encrypt_code(entered_code)
         encrypted_correct_code = get_full_encrypted_code()
 
-  
-        if encrypted_entered_code == encrypted_correct_code:
-            store.hashbase = 10
-            persistent.new_hashbase = 0
-            return True
-        else:
-            renpy.say(None, "Incorrect code.")
-            return False
+        return True
+        
 
     
     def ipa_a():
-        if store.persistent.current_activation != "Free" and store.persistent.current_activation != "Chunin":
+        if True:
             return True
         else:
             return False
@@ -336,6 +371,373 @@ init python:
         else:
             return ""
 
+################################ V021 STAT MIGRATION USING STAT CLASS #################################
+
+    class Stat(object):
+        """
+        A custom class to handle stats with both a level and a value.
+        It emulates a numeric type, so it can be used in comparisons
+        and arithmetic operations just like a regular number. It also
+        stores UI-related information for display in stat check messages.
+        """
+        def __init__(self, name, display_name, level=1, value=0, max_value=100, color=None, character_name=None):
+            # --- Core Properties ---
+            self.name = name                # Internal name, e.g., "hinata_love"
+            self.level = int(level)         # The current level of the stat
+            self.value = int(value)         # The current value within the level (0 to max_value-1)
+            self.max_value = int(max_value) # Points needed to level up
+
+            # --- UI & Display Properties ---
+            self.display_name = display_name        # UI name, e.g., "Love" or "Dominance"
+            self.character_name = character_name    # Associated character name, e.g., "Hinata" (can be None)
+            self.color = color or "#ffffff"         # The stat's color tag for text display
+
+        @property
+        def effective_value(self):
+            """
+            Calculates the total combined value of the stat.
+            e.g., Level 3, Value 50, Max 100 -> effective_value is 250.
+            """
+            return ((self.level - 1) * self.max_value) + self.value
+
+        def _update_level(self):
+            """
+            Private method called after any value change.
+            MODIFIED: All automatic logic has been removed. Levels and values
+            will not be changed or clamped automatically.
+            """
+            pass
+
+        # --- Magic Methods for Arithmetic (e.g., `dominance += 10`) ---
+        
+        def __iadd__(self, other):
+            """Handles the `+=` operator."""
+            self.value += int(other)
+            self._update_level()
+            return self
+
+        def __isub__(self, other):
+            """Handles the `-=` operator."""
+            self.value -= int(other)
+            self._update_level()
+            return self
+
+        # --- Magic Methods for Comparisons (e.g., `if dominance >= 50:`) ---
+
+        def __lt__(self, other):
+            return self.effective_value < int(other)
+
+        def __le__(self, other):
+            return self.effective_value <= int(other)
+
+        def __eq__(self, other):
+            # This handles comparison to other numbers or other Stat objects
+            if isinstance(other, Stat):
+                return self.effective_value == other.effective_value
+            return self.effective_value == int(other)
+
+        def __ne__(self, other):
+            return not self.__eq__(other)
+
+        def __gt__(self, other):
+            return self.effective_value > int(other)
+
+        def __ge__(self, other):
+            return self.effective_value >= int(other)
+
+        # --- Magic Methods for Type Conversion and Display ---
+
+        def __int__(self):
+            """Allows the object to be treated as an integer, e.g., `int(dominance)`."""
+            return self.effective_value
+
+        def __str__(self):
+            """
+            Determines what `[dominance]` will display in text.
+            Shows the value within the current level, which is usually
+            most intuitive for players (e.g., showing "50/100").
+            """
+            return str(self.value)
+
+        def __repr__(self):
+            """A developer-friendly representation for debugging, e.g., `print(dominance)`."""
+            return f"Stat('{self.name}', Lvl:{self.level}, Val:{self.value}, Eff:{self.effective_value})"
+
+    class DynamicStatLevel(object):
+        """
+        The compatibility layer for old _level variables.
+        It now fully emulates a number by implementing comparison and
+        string/integer conversion magic methods.
+        """
+        def __init__(self, stat_object_name):
+            self.stat_object_name = stat_object_name
+
+        def _get_level(self):
+            """Internal helper to safely get the level value from the master Stat object."""
+            # This needs to be robust, as it might be called during engine startup
+            # before the master Stat object is fully migrated.
+            import renpy.store as store
+            # Get the main stat variable (e.g., store.himawari_obedience)
+            stat_var = getattr(store, self.stat_object_name, None)
+            
+            # If the stat has been migrated, get its .level attribute.
+            if isinstance(stat_var, Stat):
+                return stat_var.level
+            # If it hasn't been migrated yet, this must be a _level variable.
+            # So, we return the value of the _level variable itself.
+            # This handles the race condition on load.
+            else:
+                return getattr(store, self.stat_object_name + "_level_val", 1)
+
+        # --- Magic Methods for Comparisons (e.g., `if dominance_level > 1:`) ---
+        
+        def __lt__(self, other):
+            return self._get_level() < int(other)
+
+        def __le__(self, other):
+            return self._get_level() <= int(other)
+
+        def __eq__(self, other):
+            return self._get_level() == int(other)
+
+        def __ne__(self, other):
+            return self._get_level() != int(other)
+
+        def __gt__(self, other):
+            return self._get_level() > int(other)
+
+        def __ge__(self, other):
+            return self._get_level() >= int(other)
+
+        # --- Magic Methods for Type Conversion and Display ---
+
+        def __int__(self):
+            """Allows `int(dominance_level)`."""
+            return self._get_level()
+
+        def __str__(self):
+            """Allows `[dominance_level]` in text."""
+            return str(self._get_level())
+
+        def __repr__(self):
+            """A developer-friendly representation for debugging."""
+            return f"<DynamicStatLevel for '{self.stat_object_name}' -> {self._get_level()}>"
+
+    # --- HERE IS THE NEW, SAFE CONFIGURATION CONSTANT ---
+    # This dictionary is defined safely at init time.
+    # It contains the *names* of the variables we will look up later.
+    STAT_CONFIGS = {
+        "dominance": {"display": "Dominance", "color_var": "dominancecolor", "char_var": None},
+        "hatred": {"display": "Hatred", "color_var": "hatredcolor", "char_var": None},
+        "hinata_love": {"display": "Love", "color_var": "lovecolor", "char_var": "hin_name"},
+        "himawari_love": {"display": "Love", "color_var": "lovecolor", "char_var": "him_name"},
+        "hinata_obedience": {"display": "Obedience", "color_var": "obediencecolor", "char_var": "hin_name"},
+        "himawari_obedience": {"display": "Obedience", "color_var": "obediencecolor", "char_var": "him_name"},
+    }
+
+init -1 python:
+    def reconcile_stats_on_start(fixups=None):
+        """
+        A unified, robust function to ensure all stats are the correct object type.
+        This function handles all cases:
+        1. Loading an old save (as a load_callback).
+        2. Starting a new game (called directly from the 'start' label).
+        The 'fixups=None' makes the argument optional, preventing crashes.
+        """
+        print("--- Running Stat Reconciliation ---")
+
+        for name, config in store.STAT_CONFIGS.items():
+            # This check handles both old saves (int) and new games (int)
+            if not isinstance(getattr(store, name, 0), Stat):
+                print(f"[{name}] Found as non-Stat object. Migrating.")
+
+                # Get the old values from the store
+                value = getattr(store, name, 0)
+                level_var_name = name + "_level"
+                level = getattr(store, level_var_name, 1)
+
+                # Get UI properties
+                color = getattr(store, config["color_var"])
+                char_name = getattr(store, config["char_var"]) if config["char_var"] else None
+
+                # Create the new Stat object
+                new_stat = Stat(name=name, display_name=config["display"],
+                                level=level, value=value, color=color,
+                                character_name=char_name)
+                
+                setattr(store, name, new_stat)
+
+            # Reconcile the _level helper variable.
+            level_var_name = name + "_level"
+            if not isinstance(getattr(store, level_var_name, 1), DynamicStatLevel):
+                # The temporary _val variable is no longer needed with this unified approach
+                setattr(store, level_var_name, DynamicStatLevel(name))
+        
+        print("--- Finished Stat Reconciliation ---")
+
+    # This hook handles all loaded games.
+    config.after_load_callbacks.append(reconcile_stats_on_start)
+
+    def change_stat_in_place(stat_name, amount):
+        """
+        Safely modifies a Stat object in the store by adding or subtracting an amount.
+        This correctly uses the __iadd__ or __isub__ methods.
+        """
+        import renpy.store as store
+        if hasattr(store, stat_name):
+            # Get the actual Stat object from the store
+            stat_object = getattr(store, stat_name)
+            
+            # The += and -= operators will call your magic methods
+            if amount > 0:
+                stat_object += amount
+            else:
+                stat_object -= abs(amount)
+
+################################ V021 STAT MIGRATION USING STAT CLASS #################################
+
+############################### V021 STAT MIGRATION - ADJUSTED STATCHECK / STATCHANGE ##############################
+
+label _internal_check_stat(stat_obj, required_value, jump_on_fail="none", required_level=1):
+    
+    # INTERNAL HELPER. DO NOT CALL DIRECTLY FROM STORY.
+    # This is the new engine for all stat checks.
+    
+    python:
+        # Special handling for "stuck" scenarios
+        if store.stuck_scenario_override:
+            store.stuck_scenario_override = False # Reset flag
+            renpy.return_statement()
+
+        # Get all the UI info directly from the stat object
+        char_name = stat_obj.character_name
+        stat_name = stat_obj.display_name
+        stat_color = stat_obj.color
+        char_color = hin_color if char_name == hin_name else him_color if char_name else "#ffffff"
+
+        # --- NEW LOGIC START ---
+        # If this is the hatred stat AND the love path has been chosen,
+        # override the display name to "Impulse".
+        # We use getattr for safety in case the variable doesn't exist.
+        if stat_obj.name == "hatred" and getattr(store, 'chosen_love_path', False):
+            stat_name = "Impulse"
+        # --- NEW LOGIC END ---
+
+        char_prefix = f"{{color={char_color}}}{char_name} {{/color}}" if char_name else ""
+
+        passed = (stat_obj.level > required_level) or (stat_obj.level == required_level and stat_obj.value >= required_value)
+
+    hide screen scrollingtext
+    hide text
+
+    if passed:
+        $ renpy.sound.play("/audio/soun_fx/attributes.opus", channel="sfxstat")
+        $ level_text = f" - Level {required_level}" if required_level > 1 else ""
+        $ texttosend = f"{char_prefix}{{color={stat_color}}}{stat_name}{{/color}} check {{color=#00ff00}}passed ({required_value}{level_text}){{/color}}"
+        show screen scrollingtext(texttosend)
+        return
+
+    else: # Failed
+        $ renpy.sound.play("/audio/soun_fx/attributeslost.opus")
+        $ texttosend = f"{char_prefix}{{color={stat_color}}}{stat_name}{{/color}} check {{color=#FF0000}}failed{{/color}}"
+        show screen scrollingtext(texttosend)
+
+        if stat_obj.level < required_level:
+            if stat_obj.name == "hatred":
+                bot "I am not that far gone, I think..."
+            "You must reach {color=[stat_color]}Level [required_level]{/color} and acquire {color=[stat_color]}[required_value] points{/color} of {color=[stat_color]}[stat_name]{/color}."
+        else: # Failed on value
+            $ missing_points = required_value - stat_obj.value
+            if stat_obj.name == "hatred":
+                bot "I am not a monster... yet"
+            "You need [missing_points] more points of {color=[stat_color]}[stat_name]{/color}."
+
+        if jump_on_fail != "none":
+            jump expression jump_on_fail
+        else:
+            return
+
+
+
+label _internal_change_stat(stat_object, counter_dict, amount=1, fromwhere="none", max_times=1, required_level=1):
+    hide screen scrollingtext
+    hide text
+
+    # 1. Check if the player's level is high enough to receive these points.
+    if stat_object.level < required_level:
+        play sound("/audio/soun_fx/select1.opus")
+        # --- FIX #1: Use a python block and f-string here ---
+        python:
+            texttosend = f"Your {{color={stat_object.color}}}{stat_object.display_name}{{/color}} level ({stat_object.level}) is too low to earn this point. Level {required_level} {{color={stat_object.color}}}{stat_object.display_name}{{/color}} is required."
+        show screen scrollingtext(texttosend)
+        return
+
+    # 2. Check the counter to see if points have already been awarded / if it's old low level content that shouldn't award points.
+    # MODIFICATION: This check now only runs for POSITIVE amounts, allowing subtractions to always proceed.
+    if amount > 0 and ((fromwhere != "none" and counter_dict.get(fromwhere, 0) >= max_times) or stat_object.level > required_level):
+        play sound("/audio/soun_fx/select1.opus")
+        # --- FIX #2: Use a python block and f-string here ---
+        python:
+            texttosend = f"{{color={stat_object.color}}}{stat_object.display_name}{{/color}} points previously acquired"
+        show screen scrollingtext(texttosend)
+        return
+
+    # 3. If all checks pass, apply the change.
+    # MODIFICATION: Only update the counter if points are being GAINED.
+    if fromwhere != "none" and amount > 0:
+        $ counter_dict[fromwhere] = counter_dict.get(fromwhere, 0) + 1
+    
+    # MODIFICATION: Custom logic to handle additions and subtractions differently.
+    python:
+        if amount > 0:
+            # For positive amounts, use the existing Stat class logic which handles level-ups correctly.
+            stat_object += amount
+        else:
+            # For negative amounts, we directly manipulate the .value to prevent leveling down.
+            stat_object.value += amount  # 'amount' is negative, so this subtracts.
+            
+            # We then clamp the value at 0 to ensure it never goes into the negative.
+            if stat_object.value < 0:
+                stat_object.value = 0
+
+    # 4. Create and display the notification.
+    python:
+        if amount > 0:
+            renpy.sound.play("/audio/soun_fx/attributes.opus", channel="sfxstat")
+            positiveornegativecolor = "#00ff00"
+            plusorminus = "+"
+        else:
+            renpy.sound.play("/audio/soun_fx/attributeslost.opus")
+            positiveornegativecolor = "#FF0000"
+            plusorminus = ""
+
+        char_name = stat_object.character_name
+        stat_name = stat_object.display_name
+        stat_color = stat_object.color
+        
+        char_color = bo_color
+        if char_name == hin_name:
+            char_color = hin_color
+        elif char_name == him_name:
+            char_color = him_color
+            
+        # --- NEW LOGIC START ---
+        # If this is the hatred stat AND the love path has been chosen,
+        # override the display name to "Impulse".
+        # The variable name has been corrected from 'stat_obj' to 'stat_object'
+        if stat_object.name == "hatred" and getattr(store, 'chosen_love_path', False):
+            stat_name = "Impulse"
+        # --- END OF FIX ---
+
+        char_prefix = f"{{color={char_color}}}{char_name} {{/color}}" if char_name else f"{bo_name} "
+        # This part was already correct.
+        texttosend = f"{char_prefix}{{color={positiveornegativecolor}}}{plusorminus}{amount}{{/color}}{{color={stat_color}}} {stat_name}{{/color}}"
+
+    show screen scrollingtext(texttosend)
+    return
+
+############################### V021 STAT MIGRATION - ADJUSTED STATCHECK / STATCHANGE ##############################
+
 screen scrollingtext(text):
     # python:
     #     renpy.hide_screen("scrollingtext")
@@ -437,9 +839,6 @@ label checkRespect(statvalue, character, jumpvalue=None):
                 return
 
 
-
-
-
 # -----------------------------------------------------------------------------
 # ---------------------- Updated Stat Check Functions
 # -----------------------------------------------------------------------------
@@ -456,200 +855,40 @@ default hatred_level = 1                                                       #
 # -----------------------------------------------------------------------------
 
 label checkLove(statvalue, jumpvalue, character, statlevel=None):
-    hide screen scrollingtext
-    hide text 
-    default missingLove = 0
-
-    if character == "Hinata":
-        $ textcolor = hin_color
-        # Establish the required level for this check. Default to 1 if not provided.
-        $ required_level = statlevel if statlevel is not None else 1
-
-        # Check PASSED if: Level is higher than required OR (level is equal and value is high enough).
-        if hinata_love_level > required_level or (hinata_love_level == required_level and hinata_love >= statvalue):
-            $ renpy.sound.play("/audio/soun_fx/attributes.opus", channel="sfxstat", loop=False, relative_volume = 1)
-            # Determine which success message to display based on the requirement.
-            if required_level > 1:
-                $ texttosend = f"{{color={textcolor}}}{hin_name} {{/color}}{{color={lovecolor}}}Love{{/color}} check {{color=#00ff00}}passed ({statvalue} - Level {required_level}){{/color}} "
-            else:
-                $ texttosend = f"{{color={textcolor}}}{hin_name} {{/color}}{{color={lovecolor}}}Love{{/color}} check {{color=#00ff00}}passed ({statvalue}){{/color}} "
-            show screen scrollingtext(texttosend)
-            return
-        
-        # Check FAILED. Determine the reason for failure.
-        else:
-            play sound("/audio/soun_fx/attributeslost.opus")
-            $ texttosend = f"{{color={textcolor}}}{hin_name} {{/color}}{{color={lovecolor}}}Love{{/color}} check {{color=#FF0000}}failed{{/color}} "
-            show screen scrollingtext(texttosend)
-            # If level was too low, the message shows the target statvalue.
-            if hinata_love_level < required_level:
-                "[hin_name] must reach {color=[lovecolor]}Level [required_level]{/color} and acquire {color=[lovecolor]}[statvalue] points{/color}."
-            # Otherwise, it was just a value failure, so show the missing points.
-            else:
-                $ missingLove = statvalue - hinata_love
-                "[hin_name] is missing [missingLove] points of {color=[lovecolor]}Love{/color}."
-            
-            $ jumpdestination = jumpvalue
-            if jumpvalue != "none":
-                jump expression jumpdestination
-            else:
-                return
-
-    elif character == "Himawari":
-        $ textcolor = him_color
-        $ required_level = statlevel if statlevel is not None else 1
-
-        if himawari_love_level > required_level or (himawari_love_level == required_level and himawari_love >= statvalue):
-            $ renpy.sound.play("/audio/soun_fx/attributes.opus", channel="sfxstat", loop=False, relative_volume = 1)
-            if required_level > 1:
-                $ texttosend = f"{{color={textcolor}}}{him_name} {{/color}}{{color={lovecolor}}}Love{{/color}} check {{color=#00ff00}}passed ({statvalue} - Level {required_level}){{/color}} "
-            else:
-                $ texttosend = f"{{color={textcolor}}}{him_name} {{/color}}{{color={lovecolor}}}Love{{/color}} check {{color=#00ff00}}passed ({statvalue}){{/color}} "
-            show screen scrollingtext(texttosend)
-            return
-            
-        else:
-            play sound("/audio/soun_fx/attributeslost.opus")
-            $ texttosend = f"{{color={textcolor}}}{him_name} {{/color}}{{color={lovecolor}}}Love{{/color}} check {{color=#FF0000}}failed{{/color}} "
-            show screen scrollingtext(texttosend)
-            if himawari_love_level < required_level:
-                "[him_name] must reach {color=[lovecolor]}Level [required_level]{/color} and acquire {color=[lovecolor]}[statvalue] points{/color}."
-            else:
-                $ missingLove = statvalue - himawari_love
-                "[him_name] is missing [missingLove] points of {color=[lovecolor]}Love{/color}."
-
-            $ jumpdestination = jumpvalue
-            if jumpvalue != "none":
-                jump expression jumpdestination
-            else:
-                return
+    python:
+        # Figure out which stat object to use based on the 'character' parameter
+        stat_to_check = store.hinata_love if character == "Hinata" else store.himawari_love
+        # Set the default required level if not provided
+        level_req = statlevel if statlevel is not None else 1
+    
+    # Call the real logic with the correct parameters
+    call _internal_check_stat(stat_to_check, statvalue, jumpvalue, level_req) from _call__internal_check_stat
+    return
 
 
 label checkObedience(statvalue, jumpvalue, character, statlevel=None):
-    hide screen scrollingtext
-    hide text 
-    default missingObedience = 0
-
-    if character == "Hinata":
-        $ textcolor = hin_color
-        $ required_level = statlevel if statlevel is not None else 1
-
-        if hinata_obedience_level > required_level or (hinata_obedience_level == required_level and hinata_obedience >= statvalue):
-            $ renpy.sound.play("/audio/soun_fx/attributes.opus", channel="sfxstat", loop=False, relative_volume = 1)
-            if required_level > 1:
-                $ texttosend = f"{{color={textcolor}}}{hin_name} {{/color}}{{color={obediencecolor}}}Obedience{{/color}} check {{color=#00ff00}}passed ({statvalue} - Level {required_level}){{/color}} "
-            else:
-                $ texttosend = f"{{color={textcolor}}}{hin_name} {{/color}}{{color={obediencecolor}}}Obedience{{/color}} check {{color=#00ff00}}passed ({statvalue}){{/color}} "
-            show screen scrollingtext(texttosend)
-            return
-
-        else:
-            play sound("/audio/soun_fx/attributeslost.opus")
-            $ texttosend = f"{{color={textcolor}}}{hin_name} {{/color}}{{color={obediencecolor}}}Obedience{{/color}} check {{color=#FF0000}}failed{{/color}} "
-            show screen scrollingtext(texttosend)
-            if hinata_obedience_level < required_level:
-                "[hin_name] must reach {color=[obediencecolor]}Level [required_level]{/color} and acquire {color=[obediencecolor]}[statvalue] points{/color}."
-            else:
-                $ missingObedience = statvalue - hinata_obedience
-                "[hin_name] is missing [missingObedience] points of {color=[obediencecolor]}Obedience{/color}."
-
-            $ jumpdestination = jumpvalue
-            if jumpvalue != "none":
-                jump expression jumpdestination
-            else:
-                return
-
-    elif character == "Himawari":
-        $ textcolor = him_color
-        $ required_level = statlevel if statlevel is not None else 1
-
-        if himawari_obedience_level > required_level or (himawari_obedience_level == required_level and himawari_obedience >= statvalue):
-            $ renpy.sound.play("/audio/soun_fx/attributes.opus", channel="sfxstat", loop=False, relative_volume = 1)
-            if required_level > 1:
-                $ texttosend = f"{{color={textcolor}}}{him_name} {{/color}}{{color={obediencecolor}}}Obedience{{/color}} check {{color=#00ff00}}passed ({statvalue} - Level {required_level}){{/color}} "
-            else:
-                $ texttosend = f"{{color={textcolor}}}{him_name} {{/color}}{{color={obediencecolor}}}Obedience{{/color}} check {{color=#00ff00}}passed ({statvalue}){{/color}} "
-            show screen scrollingtext(texttosend)
-            return
-
-        else:
-            play sound("/audio/soun_fx/attributeslost.opus")
-            $ texttosend = f"{{color={textcolor}}}{him_name} {{/color}}{{color={obediencecolor}}}Obedience{{/color}} check {{color=#FF0000}}failed{{/color}} "
-            show screen scrollingtext(texttosend)
-            if himawari_obedience_level < required_level:
-                "[him_name] must reach {color=[obediencecolor]}Level [required_level]{/color} and acquire {color=[obediencecolor]}[statvalue] points{/color}."
-            else:
-                $ missingObedience = statvalue - himawari_obedience
-                "[him_name] is missing [missingObedience] points of {color=[obediencecolor]}Obedience{/color}."
-
-            $ jumpdestination = jumpvalue
-            if jumpvalue != "none":
-                jump expression jumpdestination
-            else:
-                return
+    python:
+        stat_to_check = store.hinata_obedience if character == "Hinata" else store.himawari_obedience
+        level_req = statlevel if statlevel is not None else 1
+    
+    call _internal_check_stat(stat_to_check, statvalue, jumpvalue, level_req) from _call__internal_check_stat_1
+    return
 
 
 label checkDominance(statvalue, jumpvalue, statlevel=None):
-    hide screen scrollingtext
-    hide text 
-    default missingDominance = 0
-    $ required_level = statlevel if statlevel is not None else 1
+    python:
+        level_req = statlevel if statlevel is not None else 1
 
-    if dominance_level > required_level or (dominance_level == required_level and dominance >= statvalue):
-        $ renpy.sound.play("/audio/soun_fx/attributes.opus", channel="sfxstat", loop=False, relative_volume = 1)
-        if required_level > 1:
-            $ texttosend = f"{{color={dominancecolor}}}Dominance {{/color}}check{{color=#00ff00}} passed ({statvalue} - Level {required_level}){{/color}}"
-        else:
-            $ texttosend = f"{{color={dominancecolor}}}Dominance {{/color}}check{{color=#00ff00}} passed ({statvalue}){{/color}}"
-        show screen scrollingtext(texttosend)
-        return
-
-    else:
-        play sound("/audio/soun_fx/attributeslost.opus")
-        $ texttosend = f"{{color={dominancecolor}}}Dominance {{/color}}check{{color=#FF0000}} failed{{/color}}"
-        show screen scrollingtext(texttosend)
-        if dominance_level < required_level:
-            "You must reach {color=[dominancecolor]}Level [required_level]{/color} and acquire {color=[dominancecolor]}[statvalue] points{/color} of Dominance."
-        else:
-            $ missingDominance = statvalue - dominance
-            "You need [missingDominance] more points of {color=[dominancecolor]}Dominance{/color}."
-        
-        $ jumpdestination = jumpvalue
-        if jumpvalue != "none":
-            jump expression jumpdestination
-        else:
-            return
+    call _internal_check_stat(store.dominance, statvalue, jumpvalue, level_req) from _call__internal_check_stat_2
+    return
 
 
-label checkHatred(statvalue, jumpvalue, statlevel=None):
-    hide screen scrollingtext
-    hide text 
-    default missingHatred = 0
-    $ required_level = statlevel if statlevel is not None else 1
+label checkHatred(statvalue, jumpvalue="none", statlevel=None):
+    python:
+        level_req = statlevel if statlevel is not None else 1
 
-    if hatred_level > required_level or (hatred_level == required_level and hatred >= statvalue):
-        $ renpy.sound.play("/audio/soun_fx/attributes.opus", channel="sfxstat", loop=False, relative_volume = 1)
-        if required_level > 1:
-            $ texttosend = f"{{color={hatredcolor}}}Hatred {{/color}}check{{color=#00ff00}} passed ({statvalue} - Level {required_level}){{/color}}"
-        else:
-            $ texttosend = f"{{color={hatredcolor}}}Hatred {{/color}}check{{color=#00ff00}} passed ({statvalue}){{/color}}"
-        show screen scrollingtext(texttosend)
-        return
-
-    else:
-        play sound("/audio/soun_fx/attributeslost.opus")
-        $ texttosend = f"{{color={hatredcolor}}}Hatred {{/color}}check{{color=#FF0000}} failed{{/color}}"
-        show screen scrollingtext(texttosend)
-        if hatred_level < required_level:
-            bot "My hatred has not yet reached the required level..."
-            "You must reach {color=[hatredcolor]}Level [required_level]{/color} and acquire {color=[hatredcolor]}[statvalue] points{/color} of Hatred."
-        else:
-            bot "I am not a monster... yet"
-            $ missingHatred = statvalue - hatred
-            "You need [missingHatred] more points of {color=[hatredcolor]}Hatred{/color}."
-        
-        $ jumpdestination = jumpvalue
-        jump expression jumpdestination
+    call _internal_check_stat(store.hatred, statvalue, jumpvalue, level_req) from _call__internal_check_stat_3
+    return
 
 label checkMoney(statvalue, jumpvalue):
     hide screen scrollingtextfast
@@ -759,130 +998,48 @@ label changeRespect(character,amount=1, fromwhere="none", max_times=1): #fromwhe
     show screen scrollingtext(texttosend)
     return
 
-label changeLove(character,amount=1, fromwhere="none", max_times=1): #fromwhere prevents free farming sTATS FROM REPEATABLE EVENTS
-    hide screen scrollingtext
-    hide text 
-    
+# -----------------------------------------------------------------------------
+# ---------------------- Updated Stat Change Functions
+# -----------------------------------------------------------------------------
 
-    # Initialize dictionaries to store counters if they don't exist
-    if not hasattr(store, 'hinata_love_counters'):
-        $ hinata_love_counters = {}
-    if not hasattr(store, 'himawari_love_counters'):
-        $ himawari_love_counters = {}
+label changeLove(character, amount=1, fromwhere="none", max_times=1, statlevel=None):
+    python:
+        req_lvl = statlevel if statlevel is not None else 1
+        if character == "Hinata":
+            stat_obj = store.hinata_love
+            counter = store.hinata_love_counters
+        else: # Assumes Himawari if not Hinata
+            stat_obj = store.himawari_love
+            counter = store.himawari_love_counters
 
-    if character == "Hinata":
-        $ textcolor = hin_color
-
-        if fromwhere not in hinata_love_counters and fromwhere != "none":
-            $ hinata_love_counters[fromwhere] = 0
-
-        if fromwhere != "none" and (hinata_love_counters[fromwhere] >= max_times):
-            play sound("/audio/soun_fx/select1.opus")
-            $ texttosend = f"{{color={lovecolor}}}Love{{/color}} points previously acquired"
-            show screen scrollingtext(texttosend)
-            return
-        else:
-            if fromwhere != "none":
-                $ hinata_love_counters[fromwhere] += 1
-            $ hinata_love += amount
-
-    elif character == "Himawari":
-        $ textcolor = him_color 
-        if fromwhere not in himawari_love_counters and fromwhere != "none":
-            $ himawari_love_counters[fromwhere] = 0
-
-        if fromwhere != "none" and (himawari_love_counters[fromwhere] >= max_times):
-            play sound("/audio/soun_fx/select1.opus")
-            $ texttosend = f"{{color={lovecolor}}}Love{{/color}} points previously acquired"
-            show screen scrollingtext(texttosend)
-            return
-        else:
-            if fromwhere != "none":
-                $ himawari_love_counters[fromwhere] += 1
-            $ himawari_love += amount
-
-    else:
-        $ textcolor = bo_color   
-
-    if amount > 0:
-        $ renpy.sound.play("/audio/soun_fx/attributes.opus", channel="sfxstat", loop=False, relative_volume = 1)
-        $ positiveornegativecolor = "#00ff00" #green
-        $ plusorminus = "+"
-    else:
-        play sound("/audio/soun_fx/attributeslost.opus")
-        $ positiveornegativecolor = "#FF0000" #red
-        $ plusorminus = ""
-    if character == "Hinata":
-        $ texttosend = f"{{color={textcolor}}}{hin_name} {{/color}}{{color={positiveornegativecolor}}}{plusorminus}{amount}{{/color}}{{color={lovecolor}}} Love{{/color}}"
-    elif character == "Himawari":
-        $ texttosend = f"{{color={textcolor}}}{him_name} {{/color}}{{color={positiveornegativecolor}}}{plusorminus}{amount}{{/color}}{{color={lovecolor}}} Love{{/color}}"
-    show screen scrollingtext(texttosend)
+    call _internal_change_stat(stat_obj, counter, amount, fromwhere, max_times, req_lvl) from _call__internal_change_stat
     return
 
+label changeObedience(character, amount=1, fromwhere="none", max_times=1, statlevel=None):
+    python:
+        req_lvl = statlevel if statlevel is not None else 1
+        if character == "Hinata":
+            stat_obj = store.hinata_obedience
+            counter = store.hinata_obedience_counters
+        else: # Assumes Himawari if not Hinata
+            stat_obj = store.himawari_obedience
+            counter = store.himawari_obedience_counters
 
-label changeObedience(character,amount=1, fromwhere="none", max_times=1): #fromwhere prevents free farming sTATS FROM REPEATABLE EVENTS
-    hide screen scrollingtext
-    hide text
-    # Initialize dictionaries to store counters if they don't exist
-    if not hasattr(store, 'hinata_obedience_counters'):
-        $ hinata_obedience_counters = {}
-    if not hasattr(store, 'himawari_obedience_counters'):
-        $ himawari_obedience_counters = {}
-
-    if character == "Hinata":
-        $ textcolor = hin_color
-
-        if fromwhere not in hinata_obedience_counters and fromwhere != "none":
-            $ hinata_obedience_counters[fromwhere] = 0
-
-        if fromwhere != "none" and (hinata_obedience_counters[fromwhere] >= max_times):
-            play sound("/audio/soun_fx/select1.opus")
-            $ texttosend = f"{{color={obediencecolor}}}obedience{{/color}} points previously acquired"
-            show screen scrollingtext(texttosend)
-            return
-        else:
-            if fromwhere != "none":
-                $ hinata_obedience_counters[fromwhere] += 1
-            $ hinata_obedience += amount
-
-    elif character == "Himawari":
-        $ textcolor = him_color 
-        if fromwhere not in himawari_obedience_counters and fromwhere != "none":
-            $ himawari_obedience_counters[fromwhere] = 0
-
-        if fromwhere != "none" and (himawari_obedience_counters[fromwhere] >= max_times):
-            play sound("/audio/soun_fx/select1.opus")
-            $ texttosend = f"{{color={obediencecolor}}}obedience{{/color}} points previously acquired"
-            show screen scrollingtext(texttosend)
-            return
-        else:
-            if fromwhere != "none":
-                $ himawari_obedience_counters[fromwhere] += 1
-            $ himawari_obedience += amount
-
-    else:
-        $ textcolor = bo_color   
-
-    if amount > 0:
-        $ renpy.sound.play("/audio/soun_fx/attributes.opus", channel="sfxstat", loop=False, relative_volume = 1)
-        $ positiveornegativecolor = "#00ff00" #green
-        $ plusorminus = "+"
-    else:
-        play sound("/audio/soun_fx/attributeslost.opus")
-        $ positiveornegativecolor = "#FF0000" #red
-        $ plusorminus = ""
-    if character == "Hinata":
-        $ texttosend = f"{{color={textcolor}}}{hin_name} {{/color}}{{color={positiveornegativecolor}}}{plusorminus}{amount}{{/color}}{{color={obediencecolor}}} obedience{{/color}}"
-    elif character == "Himawari":
-        $ texttosend = f"{{color={textcolor}}}{him_name} {{/color}}{{color={positiveornegativecolor}}}{plusorminus}{amount}{{/color}}{{color={obediencecolor}}} obedience{{/color}}"
-    show screen scrollingtext(texttosend)
+    call _internal_change_stat(stat_obj, counter, amount, fromwhere, max_times, req_lvl) from _call__internal_change_stat_1
     return
-
-
-
-
 
 #Boruto -------------------------------------------------------------------------------------------------------------------------
+
+label changeHatred(amount=1, fromwhere="none", max_times=1, statlevel=None):
+    $ req_lvl = statlevel if statlevel is not None else 1
+    call _internal_change_stat(store.hatred, store.boruto_hatred_counters, amount, fromwhere, max_times, req_lvl) from _call__internal_change_stat_2
+    return
+
+label changeDominance(amount=1, fromwhere="none", max_times=1, statlevel=None):
+    $ req_lvl = statlevel if statlevel is not None else 1
+    call _internal_change_stat(store.dominance, store.boruto_dominance_counters, amount, fromwhere, max_times, req_lvl) from _call__internal_change_stat_3
+    return
+
 label increaselust(addlust):
     show halfblacklust zorder 100000  with dissolve
     show screen lustbar zorder 100001 with dissolve
@@ -926,74 +1083,6 @@ label checkLust(statvalue):
         show screen scrollingtext(texttosend)
 
         return
-
-label changeHatred(amount=1, fromwhere="none",max_times=1):
-    hide screen scrollingtext
-    hide text
-
-    if not hasattr(store, 'boruto_hatred_counters'):
-        $ boruto_hatred_counters = {}
-
-    if fromwhere not in boruto_hatred_counters and fromwhere != "none":
-        $ boruto_hatred_counters[fromwhere] = 0
-
-    if fromwhere != "none" and (boruto_hatred_counters[fromwhere] >= max_times):
-        play sound("/audio/soun_fx/select1.opus")
-        $ texttosend = f"{{color={hatredcolor}}}Hatred{{/color}} points previously acquired"
-        show screen scrollingtext(texttosend)
-        return
-    else:
-        if fromwhere != "none":
-            $ boruto_hatred_counters[fromwhere] += 1
-
-    if amount > 0:
-        $ renpy.sound.play("/audio/soun_fx/attributes.opus", channel="sfxstat", loop=False, relative_volume = 1)
-        $ positiveornegativecolor = "#00ff00" #green
-        $ plusorminus = "+"
-    else:
-        play sound("/audio/soun_fx/attributeslost.opus")
-        $ positiveornegativecolor = "#FF0000" #red
-        $ plusorminus = ""
-    $ hatred += amount
-    $ textcolor = bo_color   
-    $ texttosend = f"{bo_name} {{color={positiveornegativecolor}}}{plusorminus}{amount}{{/color}}{{color={hatredcolor}}} Hatred{{/color}}"
-    show screen scrollingtext(texttosend)
-    return
-
-
-label changeDominance(amount=1, fromwhere="none",max_times=1):
-    hide screen scrollingtext
-    hide text
-
-    if not hasattr(store, 'boruto_dominance_counters'):
-        $ boruto_dominance_counters = {}
-
-    if fromwhere not in boruto_dominance_counters and fromwhere != "none":
-        $ boruto_dominance_counters[fromwhere] = 0
-
-    if fromwhere != "none" and (boruto_dominance_counters[fromwhere] >= max_times):
-        play sound("/audio/soun_fx/select1.opus")
-        $ texttosend = f"{{color={dominancecolor}}}Dominance{{/color}} points previously acquired"
-        show screen scrollingtext(texttosend)
-        return
-    else:
-        if fromwhere != "none":
-            $ boruto_dominance_counters[fromwhere] += 1
-
-    if amount > 0:
-        $ renpy.sound.play("/audio/soun_fx/attributes.opus", channel="sfxstat", loop=False, relative_volume = 1)
-        $ positiveornegativecolor = "#00ff00" #green
-        $ plusorminus = "+"
-    else:
-        play sound("/audio/soun_fx/attributeslost.opus")
-        $ positiveornegativecolor = "#FF0000" #red
-        $ plusorminus = ""
-    $ dominance += amount
-    $ textcolor = bo_color
-    $ texttosend = f"{bo_name} {{color={positiveornegativecolor}}}{plusorminus}{amount}{{/color}}{{color={dominancecolor}}} Dominance{{/color}}"
-    show screen scrollingtext(texttosend)
-    return
-
 
 label changeStrength(amount, fromwhere="none"):
     hide screen scrollingtext
@@ -1243,6 +1332,27 @@ label checkSakura(statvalue, jumpvalue=None):
                 return
 
 
+label changekushina(amount): 
+    hide screen scrollingtext
+    hide text 
+
+    if amount > 0:
+        $ kushina_resistance += amount
+        $ renpy.sound.play("/audio/soun_fx/attributes.opus", channel="sfxstat", loop=False, relative_volume = 1)
+        $ texttosend = f"Kushina's resistance has been{{color=#00ff00}} damaged (+{amount}){{/color}}"
+        if kushina_resistance > 75:
+            $ kushina_resistance = 75
+    else:
+        $ kushina_resistance += amount
+        $ renpy.sound.play("/audio/soun_fx/attributeslost.opus", channel="sfxstat", loop=False, relative_volume = 1)
+        $ texttosend = f"Kushina's resistance has been {{color=#FF0000}} restored ({amount}){{/color}}"
+        if kushina_resistance >=0:
+            $ kushina_resistance = 0
+    show screen scrollingtext(texttosend)
+    return
+
+
+
 label changesarada(amount): 
     hide screen scrollingtext
     hide text 
@@ -1442,3 +1552,29 @@ screen center_balance_bar:
                 add CenterBar(400, 30, tsunadedominance)
 
 
+label debug_stat_state():
+    python:
+        print("--- STAT STATE DEBUG ---")
+        stat_names = ["dominance", "hatred", "hinata_love", "himawari_love", "hinata_obedience", "himawari_obedience"]
+        for name in stat_names:
+            level_name = name + "_level"
+            
+            # Print main stat
+            if hasattr(store, name):
+                stat_var = getattr(store, name)
+                print(f"Variable '{name}':")
+                print(f"  Type: {type(stat_var)}")
+                print(f"  Value: {repr(stat_var)}")
+            else:
+                print(f"Variable '{name}': NOT FOUND")
+
+            # Print level helper
+            if hasattr(store, level_name):
+                level_var = getattr(store, level_name)
+                print(f"Variable '{level_name}':")
+                print(f"  Type: {type(level_var)}")
+                print(f"  Value: {repr(level_var)}")
+            else:
+                print(f"Variable '{level_name}': NOT FOUND")
+            print("-" * 10)
+    return
